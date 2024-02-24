@@ -10,7 +10,7 @@ pd.options.display.float_format = '{:.2f}'.format
 class CVM_Data:
 
 
-    def __init__(self,year:int,path:str) -> None:
+    def __init__(self,year:str,path:str) -> None:
         
         self.year = str(year)
         self.path = path
