@@ -1,4 +1,4 @@
-path = f'A:/Programas/Códigos VSCode/Projects/Financial_Analysis-/Consume_Data/' # Path to save the files of CVM request.
+path = f'' # Path to save the files of CVM request.
     
 year = 2023 # Year of the financials that needs to scrap of CVM.
     
