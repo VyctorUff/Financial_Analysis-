@@ -3,8 +3,7 @@ import requests
 import numpy as np
 import zipfile
 import os
-#from bcb import sgs
-
+from Settings_Data import *
 
 pd.options.display.float_format = '{:.2f}'.format
 
@@ -95,24 +94,14 @@ class CVM_Data:
         
         financial_information = (pd.DataFrame(list_of_financials)).T
 
+
         return financial_information
 
 
 
 if __name__ == "__main__":
     
-    path = f'A:/Programas/Códigos VSCode/Projects/Financial_Analysis-/Consume_Data/' # Path to save the files of CVM request.
-    
-    year = 2023 # Year of the financials that needs to scrap of CVM.
-    
-    suffix = ['BPA','BPP','DRE','DFC_MI'] # Suffix that needs to get the informations: BPA and BPP are balance sheets(assets and liabilities), DRE is result of year and DFC_MI is cash flow with a indirect mode.
-    
-    cnpjs = ['08.070.508/0001-78','33.453.598/0001-23','08.322.396/0001-03'] # CNPJ of counterparty.
-
-    financial_info = ['Ativo Total', 'Passivo Total', 'Patrimônio Líquido Consolidado','Caixa Líquido Atividades Operacionais'] # Financials are all the financial informations that want to scrap. 
-
+    #input data from Settings_Data.py
     cvm_data = CVM_Data(year,path) # Creating a object of the class CVM_Data 
-
     financials_informations_counterparty = cvm_data.get_financials_information(financial_info,cnpjs,suffix) # Dataframe that return
-
-    print(financials_informations_counterparty)
+    print(financials_informations_counterparty) # Print the dataframe
