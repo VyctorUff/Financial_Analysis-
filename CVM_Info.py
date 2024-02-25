@@ -1,8 +1,3 @@
-import pandas as pd
-import requests
-import numpy as np
-import zipfile
-import os
 from Settings_Data import *
 
 pd.options.display.float_format = '{:.2f}'.format
@@ -71,32 +66,38 @@ class CVM_Data:
         financials_info = financials_info[columns]
         df_filtered = (financials_info.query(f"ORDEM_EXERC == 'ÚLTIMO' & CNPJ_CIA in {cnpj}")).sort_values(['DENOM_CIA'])
 
+        return df_filtered
+    
+    def get_counterparty_names(self,cnpj,suffix_list) -> list:
+
+        df_filtered = self.get_counterparty_info(cnpj,suffix_list)
         names_cias = df_filtered['DENOM_CIA'].unique()
 
         self.counterparties = names_cias
-
-        return df_filtered
+        
+        return names_cias
     
     def get_financials_information(self,financial_info:list,cnpj:list,suffix_list:list) -> pd.DataFrame:
         
-
         df_filtered = self.get_counterparty_info(cnpj,suffix_list)
+        counterparties = self.get_counterparty_names(cnpj,suffix_list)
 
         list_of_financials = {}
 
-        for name in self.counterparties:
+        for name in counterparties:
             info_dict = {}
             for info in financial_info:
                 cp_info = df_filtered.query(f"DENOM_CIA == '{name}' & DS_CONTA == '{info}' ")['VL_CONTA']
-                info_dict[info] = cp_info.iloc[0]
+                info_dict[info] = cp_info.iloc[-1]
             list_of_financials[name] = info_dict
 
-        
         financial_information = (pd.DataFrame(list_of_financials)).T
-
+        unit = df_filtered["MOEDA"].str.cat(df_filtered["ESCALA_MOEDA"],sep=" | ").unique()
+        financial_information['Unit'] = unit[0]
+        end_date = df_filtered['DT_FIM_EXERC'].unique()
+        financial_information['End_Date'] = end_date[0] #precisa criar regra pra pegar apenas as dfs fechadas em 2023, ex Raízen
 
         return financial_information
-
 
 
 if __name__ == "__main__":
