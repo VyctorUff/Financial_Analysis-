@@ -51,6 +51,7 @@ class Credit_Model_Fill:
             path_output_credit_file.append(f"{self.path}{name} - CSR & Rating - {self.year} - {today}.xlsm")
 
         self.output_path = path_output_credit_file
+        self.names_cias = names_cias
 
         return path_output_credit_file
     
@@ -78,10 +79,10 @@ class Credit_Model_Fill:
         credit_sheet["D5"] = credit_sheet["B5"].value * credit_sheet["C5"].value
 
 
-    def save_credit_file(self) -> None:
+    def save_credit_file(self, iterator) -> None:
 
-        output_path = self.get_output_path()
-        self.wb.save(output_path[0]) # Fazer um loop para salvar todos os arquivos
+        #output_path = self.get_output_path()
+        self.wb.save(self.output_path[iterator])
 
     
     def set_financials_correspondes(self)-> dict:
@@ -102,14 +103,20 @@ class Credit_Model_Fill:
         credit_sheet = self.get_excel_workbook()
         self.set_unit_adjustments()
         financiasl_correspondence = self.set_financials_correspondes()
+        self.output_path = self.get_output_path()
+
 
         exceptions = ["Despesas Financeiras","Imposto de Renda e Contribuição Social sobre o Lucro"]
-        for key, value in financiasl_correspondence.items():
-            credit_sheet[value] = df_financials.loc[:,key].values[0]
-            if key in exceptions:
-                credit_sheet[value] = credit_sheet[value].value * -1
+        
+        iterator = -1
+        for name in self.names_cias:
+            iterator += 1
+            for key, value in financiasl_correspondence.items():
+                credit_sheet[value] = df_financials.loc[name,key]
+                if key in exceptions:
+                    credit_sheet[value] = credit_sheet[value].value * -1
 
-        self.save_credit_file()
+            self.save_credit_file(iterator)
 
 if __name__ == "__main__":
 

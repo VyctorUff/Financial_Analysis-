@@ -88,10 +88,12 @@ class CVM_Data:
             info_dict = {}
             for info in financial_info:
                 cp_info = df_filtered.query(f"DENOM_CIA == '{name}' & DS_CONTA == '{info}' ")['VL_CONTA']
-                info_dict[info] = cp_info.iloc[-1]
+                info_dict[info] = 0 if cp_info.empty else cp_info.values[-1]
+
             list_of_financials[name] = info_dict
 
         financial_information = (pd.DataFrame(list_of_financials)).T
+        financial_information = financial_information.astype('float32')
         unit = df_filtered["MOEDA"].str.cat(df_filtered["ESCALA_MOEDA"],sep=" | ").unique()
         financial_information['Unit'] = unit[0]
         end_date = df_filtered['DT_FIM_EXERC'].unique()
