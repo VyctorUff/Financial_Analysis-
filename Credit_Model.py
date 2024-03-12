@@ -2,7 +2,7 @@ from CVM_Info import CVM_Data
 from Settings_Data import *
 from openpyxl import Workbook, load_workbook
 import warnings
-from datetime import date
+from datetime import date,datetime
 
 class Credit_Model_Fill:
     
@@ -12,77 +12,104 @@ class Credit_Model_Fill:
         self.suffix = suffix
         self.cnpjs = cnpjs
         self.financial_info_credit_model = financial_info_credit_model
+        self.cvm_data = CVM_Data(self.year,self.path)
         warnings.simplefilter(action='ignore', category=UserWarning) # Removing the UserWarning from openpyxl due to Data Validation in excel file.
         
+        
+    def get_financials(self) -> pd.DataFrame: 
 
-    def get_financials(self) -> pd.DataFrame:
-
-        cvm_data = CVM_Data(self.year,self.path)
-        df_financials = cvm_data.get_financials_information(self.financial_info_credit_model,self.cnpjs,self.suffix) # Dataframe that return
-
-        self.df_financials = df_financials
+        df_financials = self.cvm_data.get_financials_information(self.financial_info_credit_model,self.cnpjs,self.suffix) # Dataframe that return
+        self.df_financials_raw = df_financials
 
         return df_financials
     
-    def get_wb(self) -> object:
+    def get_filter_financials(self) -> pd.DataFrame:
+
+        df_financials_raw = self.get_financials()
+
+        min_end_date = pd.to_datetime(f'{self.year}-12-31')
+
+        df_financials_filtered = df_financials_raw.loc[df_financials_raw['End_Date'] >= min_end_date]
+        self.df_financials_filtered = df_financials_filtered
+        self.min_end_date = min_end_date
+
+        return df_financials_filtered
+    
+    def get_outdated_companies(self) -> list:
+
+        if 'self.df_financials_raw' and 'self.min_end_date' not in globals():
+            self.get_filter_financials()
+
+        outdated_names = list(self.df_financials_raw.loc[self.df_financials_raw['End_Date'] < self.min_end_date].index.values)
+        self.outdated_names = outdated_names
+
+        return outdated_names
+    
+    def get_avaliable_cias(self) -> list: 
+
+        names_cias = self.cvm_data.get_counterparty_names(self.cnpjs,self.suffix)
+        updated_names = list(set(names_cias).symmetric_difference(set(self.get_outdated_companies())))
+        self.updated_names = updated_names
+
+        return updated_names
+
+    def get_output_path(self,name:str) -> list: 
+
+        today = date.today().strftime("%Y%b%d")
+
+        path_output_credit_file = f"{self.path}{name} - CSR & Rating - {self.year} - {today}.xlsm"
+
+        self.output_path = path_output_credit_file
+            
+        return path_output_credit_file
+   
+    def get_wb(self,std_credit_file_name:str = '0 - CSR & Rating.xlsm') -> object:
                 
-        std_credit_file_name = '0 - CSR & Rating.xlsm'
         path_input_credit_file = f"{self.path}{std_credit_file_name}"
         wb = load_workbook(path_input_credit_file, keep_vba=True)
         self.wb = wb
-
-        return wb
+        
+        return wb 
     
     def get_excel_workbook(self) -> object:
-
-        credit_sheet = self.wb['SACP']
+        
+        wb = self.get_wb()
+        credit_sheet = wb['SACP']
         self.credit_sheet = credit_sheet
-
+        
         return credit_sheet
     
-    def get_output_path(self) -> list:
-
-        cvm_data = CVM_Data(self.year,self.path)
-        names_cias = cvm_data.get_counterparty_names(self.cnpjs,self.suffix)
-        today = date.today().strftime("%Y%b%d")
-
-        path_output_credit_file = []
-        for name in names_cias:
-            path_output_credit_file.append(f"{self.path}{name} - CSR & Rating - {self.year} - {today}.xlsm")
-
-        self.output_path = path_output_credit_file
-        self.names_cias = names_cias
-
-        return path_output_credit_file
-    
-    def set_unit_adjustments(self) -> None:
+    def set_unit_adjustments(self,name:str) -> None: 
 
         # Removing the data validation from the cell
         equivalences_unit = {"unidade": 10**6,"mil": 10**3, "milhão": 10**0, "bilhão": 10**-3}
 
         credit_sheet = self.credit_sheet
-        df_financials = self.df_financials
+        df_financials = self.df_financials_filtered
 
-        units = df_financials['Unit'].unique()[0].lower()
+        units = df_financials['Unit'].str.lower()
+        units['GERDAU S.A.'] = "dolar | milhão" 
+        
         for key, value in equivalences_unit.items():
-            if key in units:
+            if key in units[name]:
                 credit_sheet["B4"] = key
-                credit_sheet["B5"] = value
-        if "real" in units:
+                credit_sheet["B5"] = value                  
+                    
+        if "real" in units[name]:
             credit_sheet["C4"] = "BRL"
             credit_sheet["C5"] = 1
+
         else:
             credit_sheet["C4"] = "Not BRL"
-            credit_sheet["C5"] = input("Please, inform the FX: ")
-            credit_sheet["E5"] = credit_sheet["C5"]
+            credit_sheet["C5"] = float(input("Please, inform the FX: "))
+            credit_sheet["E5"] = credit_sheet["C5"].value
 
         credit_sheet["D5"] = credit_sheet["B5"].value * credit_sheet["C5"].value
 
 
-    def save_credit_file(self, iterator) -> None:
+    def save_credit_file(self,output_path:str) -> None:
 
-        #output_path = self.get_output_path()
-        self.wb.save(self.output_path[iterator])
+        self.wb.save(output_path)
 
     
     def set_financials_correspondes(self)-> dict:
@@ -95,30 +122,35 @@ class Credit_Model_Fill:
         
         return financiasl_correspondence
 
-
     def fill_credit_file(self) -> None:
-
-        df_financials = self.get_financials()
-        self.get_wb()
-        credit_sheet = self.get_excel_workbook()
-        self.set_unit_adjustments()
+    
+        df_financials = self.get_filter_financials()
+        name_cias = self.get_avaliable_cias()
+        outdated_names = self.get_outdated_companies()
         financiasl_correspondence = self.set_financials_correspondes()
-        self.output_path = self.get_output_path()
-
 
         exceptions = ["Despesas Financeiras","Imposto de Renda e Contribuição Social sobre o Lucro"]
-        
-        iterator = -1
-        for name in self.names_cias:
-            iterator += 1
+
+        for name in name_cias:
+            credit_sheet = self.get_excel_workbook()
+
+            output_path = self.get_output_path(name)
+            self.set_unit_adjustments(name)
+
             for key, value in financiasl_correspondence.items():
                 credit_sheet[value] = df_financials.loc[name,key]
                 if key in exceptions:
                     credit_sheet[value] = credit_sheet[value].value * -1
 
-            self.save_credit_file(iterator)
+            self.save_credit_file(output_path)
+
+        if len(outdated_names) == 0:
+            print("The credit file was updated successfully with all companies.")
+
+        else:
+            print(f"The companies {outdated_names} are outdated, the credit assessment of these companies has not been completed.")
 
 if __name__ == "__main__":
 
     credit_model = Credit_Model_Fill(year,path,suffix,cnpjs,financial_info_credit_model)
-    credit_fill = credit_model.fill_credit_file()
+    fill_data = credit_model.fill_credit_file()

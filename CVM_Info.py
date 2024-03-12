@@ -13,29 +13,53 @@ class CVM_Data:
 
     def download_data(self, autoclean:bool = True) -> str:
 
-        URL = f'https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/DFP/DADOS/dfp_cia_aberta_{self.year}.zip'
-
-        download = requests.get(URL)
-        
         full_file_name_zip = f'{self.path}dfp_cia_aberta_{self.year}.zip'
-
-        with open(full_file_name_zip, 'wb') as file:
-    
-            file.write(download.content)
-
         path_to_item = os.path.join(full_file_name_zip)
         clean_path = path_to_item.replace('.zip', '')
-                                    
-        with zipfile.ZipFile(path_to_item, 'r') as zipobj:
-            zipobj.extractall(path = clean_path)
-            
-        if autoclean:
-            # Del zip file
-            os.remove(path_to_item)
-
         self.folder_path = clean_path
+        check_raw = self.check_raw_data()
+
+        if check_raw!=True:
+
+            URL = f'https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/DFP/DADOS/dfp_cia_aberta_{self.year}.zip'
+
+            download = requests.get(URL)
+
+            with open(full_file_name_zip, 'wb') as file:
+            
+                file.write(download.content)
+
+            with zipfile.ZipFile(path_to_item, 'r') as zipobj:
+                zipobj.extractall(path = clean_path)
+
+            if autoclean:
+                # Delete the folder
+                os.remove(path_to_item)
+
 
         return clean_path
+    
+    def check_raw_data(self) -> bool:
+
+        if os.path.exists(self.folder_path):
+            return True
+        else:
+            return False
+
+    
+    def delete_folder(self,list_not_used_files:list, clear:bool = True) -> bool:
+
+        folder_path = self.folder_path 
+        for files in list_not_used_files:
+            path_to_file = os.path.join(folder_path,files)
+            if os.path.exists(path_to_file):
+                os.remove(path_to_file)
+
+        if len(os.listdir(folder_path)) > 0 and clear:
+            shutil.rmtree(folder_path)
+            return True
+        
+        return False
     
 
     def get_financial_info(self,suffix:str) -> pd.DataFrame:
@@ -49,6 +73,7 @@ class CVM_Data:
             df_data = pd.read_csv(file,sep=';', encoding='ISO-8859-1')
 
         self.df_data = df_data
+        self.csv_names = zip_file_name
 
         return df_data
 
@@ -60,11 +85,16 @@ class CVM_Data:
         
         financials_info = pd.DataFrame(columns = columns)
 
+        list_csv_files = []
+
         for i in suffix_list:
             financials_info = pd.merge(financials_info,self.get_financial_info(i),how="outer")
+            list_csv_files.append(self.csv_names)
 
         financials_info = financials_info[columns]
         df_filtered = (financials_info.query(f"ORDEM_EXERC == 'ÚLTIMO' & CNPJ_CIA in {cnpj}")).sort_values(['DENOM_CIA'])
+
+        self.list_used_files = list_csv_files
 
         return df_filtered
     
@@ -86,21 +116,28 @@ class CVM_Data:
 
         for name in counterparties:
             info_dict = {}
-            for info in financial_info:
+            unit = df_filtered.query(f"DENOM_CIA == '{name}'")['MOEDA'].str.cat(df_filtered.query(f"DENOM_CIA == '{name}'")['ESCALA_MOEDA'],sep=" | ")
+            info_dict['Unit'] = "Null" if unit.empty else unit.values[-1]
+            end_date = df_filtered.query(f"DENOM_CIA == '{name}'")['DT_FIM_EXERC']
+            info_dict['End_Date'] = 0 if end_date.empty else pd.to_datetime(end_date.values[-1])
+
+            for info in financial_info:                
                 cp_info = df_filtered.query(f"DENOM_CIA == '{name}' & DS_CONTA == '{info}' ")['VL_CONTA']
                 info_dict[info] = 0 if cp_info.empty else cp_info.values[-1]
 
             list_of_financials[name] = info_dict
 
         financial_information = (pd.DataFrame(list_of_financials)).T
-        financial_information = financial_information.astype('float32')
-        unit = df_filtered["MOEDA"].str.cat(df_filtered["ESCALA_MOEDA"],sep=" | ").unique()
-        financial_information['Unit'] = unit[0]
-        end_date = df_filtered['DT_FIM_EXERC'].unique()
-        financial_information['End_Date'] = end_date[0] #precisa criar regra pra pegar apenas as dfs fechadas em 2023, ex Raízen
+        final_date = pd.to_datetime(financial_information['End_Date'])
+        financial_unit = financial_information['Unit'].astype('str')
+        financials = financial_information.iloc[:,2:].astype('float32')
+        financial_information = pd.concat([financials,final_date,financial_unit],axis=1)
+
+        file_not_used = list(set(self.list_used_files).symmetric_difference(set(os.listdir(self.folder_path))))  
+        clear_folder = self.delete_folder(file_not_used, clear = False) #Change for False if you want to keep the folder with the csv files
+        self.clear_folder = clear_folder
 
         return financial_information
-
 
 if __name__ == "__main__":
     
