@@ -3,6 +3,7 @@ import requests
 import zipfile
 import os
 import shutil
+import yfinance as yf
 
 
 path = os.environ.get('PATH_CONSUME_DATA') # Path to save the files of CVM request.
