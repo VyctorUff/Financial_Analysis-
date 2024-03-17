@@ -3,3 +3,4 @@ Consume_Data/
 test.py
 notes.txt
 venv/
+/src/__pycache__
