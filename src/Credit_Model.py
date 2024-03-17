@@ -1,5 +1,5 @@
 from CVM_Info import CVM_Data
-from Settings_Data import *
+from src.Settings_Data import *
 from openpyxl import Workbook, load_workbook
 import warnings
 from datetime import date,datetime
