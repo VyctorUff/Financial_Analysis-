@@ -52,8 +52,9 @@ class Financials_Indicators(CVM_Data):
                     except Exception as e:
                         print(f'Ticker named {ticker} not found, error{e}')
             else:
-                end = end_date-timedelta(days=1)
-                index_date = pd.date_range(start=start_date, end=(end if end_date < datetime.now() else datetime.now()))
+                end = (end_date-timedelta(days=1)).date()
+                now = datetime.now().date()
+                index_date = pd.date_range(start=start_date, end=(end if end_date.date() < now else now))
                 return pd.Series(0,index=index_date)
             
         tickers_cp = {}

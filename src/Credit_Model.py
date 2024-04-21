@@ -1,5 +1,5 @@
 from CVM_Info import CVM_Data
-from src.Settings_Data import *
+from Settings_Data import *
 from openpyxl import Workbook, load_workbook
 import warnings
 from datetime import date,datetime
@@ -88,7 +88,7 @@ class Credit_Model_Fill:
         df_financials = self.df_financials_filtered
 
         units = df_financials['Unit'].str.lower()
-        units['GERDAU S.A.'] = "dolar | milhão" 
+        units[name] = "dolar | milhão" 
         
         for key, value in equivalences_unit.items():
             if key in units[name]:
